@@ -1,1 +1,9 @@
 add_subdirectory(dependency)
+
+add_executable(test_http_error_std test_http_error_std.cc)
+target_link_libraries(test_http_error_std requests gtest_main)
+add_test(test_http_error_std test_http_error_std)
+
+add_executable(test_http_error_boost test_http_error_boost.cc)
+target_link_libraries(test_http_error_boost requests gtest_main boost_system)
+add_test(test_http_error_boost test_http_error_boost)
