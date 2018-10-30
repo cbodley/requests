@@ -87,6 +87,17 @@ TEST(uri_view, parse_absolute)
     EXPECT_EQ("", u.authority());
     EXPECT_EQ("scheme:#fragment", u.get());
   }
+  {
+    auto u = requests::uri_view::parse("scheme:#frag?ment");
+    EXPECT_EQ("scheme", u.scheme());
+    EXPECT_EQ("", u.authority());
+    EXPECT_EQ("", u.userinfo());
+    EXPECT_EQ("", u.host());
+    EXPECT_EQ("", u.port());
+    EXPECT_EQ("", u.path());
+    EXPECT_EQ("", u.query());
+    EXPECT_EQ("frag?ment", u.fragment());
+  }
 }
 
 TEST(uri_view, parse_absolute_authority)
@@ -186,6 +197,18 @@ TEST(uri_view, parse_absolute_authority)
     EXPECT_EQ("fragment", u.fragment());
     EXPECT_EQ("userinfo@host.com:8080", u.authority());
     EXPECT_EQ("http://userinfo@host.com:8080/path#fragment", u.get());
+  }
+  {
+    auto u = requests::uri_view::parse("http://userinfo@host.com:8080/path#frag?ment");
+    EXPECT_EQ("http", u.scheme());
+    EXPECT_EQ("userinfo", u.userinfo());
+    EXPECT_EQ("host.com", u.host());
+    EXPECT_EQ("8080", u.port());
+    EXPECT_EQ("/path", u.path());
+    EXPECT_EQ("", u.query());
+    EXPECT_EQ("frag?ment", u.fragment());
+    EXPECT_EQ("userinfo@host.com:8080", u.authority());
+    EXPECT_EQ("http://userinfo@host.com:8080/path#frag?ment", u.get());
   }
 }
 
@@ -295,6 +318,17 @@ TEST(uri_view, parse_relative)
     EXPECT_EQ("", u.query());
     EXPECT_EQ("fragment", u.fragment());
   }
+  {
+    auto u = requests::uri_view::parse("#frag?ment");
+    EXPECT_EQ("", u.scheme());
+    EXPECT_EQ("", u.authority());
+    EXPECT_EQ("", u.userinfo());
+    EXPECT_EQ("", u.host());
+    EXPECT_EQ("", u.port());
+    EXPECT_EQ("", u.path());
+    EXPECT_EQ("", u.query());
+    EXPECT_EQ("frag?ment", u.fragment());
+  }
 }
 
 TEST(uri_view, parse_relative_authority)
@@ -394,5 +428,65 @@ TEST(uri_view, parse_relative_authority)
     EXPECT_EQ("fragment", u.fragment());
     EXPECT_EQ("userinfo@host.com:8080", u.authority());
     EXPECT_EQ("//userinfo@host.com:8080/path#fragment", u.get());
+  }
+  {
+    auto u = requests::uri_view::parse("//userinfo@host.com:8080/path#frag?ment");
+    EXPECT_EQ("", u.scheme());
+    EXPECT_EQ("userinfo", u.userinfo());
+    EXPECT_EQ("host.com", u.host());
+    EXPECT_EQ("8080", u.port());
+    EXPECT_EQ("/path", u.path());
+    EXPECT_EQ("", u.query());
+    EXPECT_EQ("frag?ment", u.fragment());
+    EXPECT_EQ("userinfo@host.com:8080", u.authority());
+    EXPECT_EQ("//userinfo@host.com:8080/path#frag?ment", u.get());
+  }
+}
+
+TEST(uri_view, copy)
+{
+  auto uri = requests::uri_view::parse("https://domain.com/index.html");
+  ASSERT_EQ("https", uri.scheme());
+  ASSERT_EQ("domain.com", uri.authority());
+  ASSERT_EQ("/index.html", uri.path());
+  ASSERT_EQ("https://domain.com/index.html", uri.get());
+  {
+    requests::uri_view copied{uri}; // copy construct
+    EXPECT_EQ("https", copied.scheme());
+    EXPECT_EQ("domain.com", copied.authority());
+    EXPECT_EQ("/index.html", copied.path());
+    EXPECT_EQ("https://domain.com/index.html", copied.get());
+  }
+  {
+    requests::uri_view copied;
+    copied = uri; // copy assign
+    EXPECT_EQ("https", copied.scheme());
+    EXPECT_EQ("domain.com", copied.authority());
+    EXPECT_EQ("/index.html", copied.path());
+    EXPECT_EQ("https://domain.com/index.html", copied.get());
+  }
+}
+
+TEST(uri_view, move)
+{
+  {
+    auto uri = requests::uri_view::parse("https://domain.com/index.html");
+    ASSERT_EQ("https://domain.com/index.html", uri.get());
+    requests::uri_view copied{std::move(uri)}; // move construct
+    EXPECT_EQ("https", copied.scheme());
+    EXPECT_EQ("domain.com", copied.authority());
+    EXPECT_EQ("/index.html", copied.path());
+    EXPECT_EQ("https://domain.com/index.html", copied.get());
+  }
+  {
+    auto uri = requests::uri_view::parse("https://domain.com/index.html");
+    ASSERT_EQ("https://domain.com/index.html", uri.get());
+    requests::uri_view copied;
+    EXPECT_EQ("", copied.get());
+    copied = std::move(uri); // move assign
+    EXPECT_EQ("https", copied.scheme());
+    EXPECT_EQ("domain.com", copied.authority());
+    EXPECT_EQ("/index.html", copied.path());
+    EXPECT_EQ("https://domain.com/index.html", copied.get());
   }
 }

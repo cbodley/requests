@@ -6,131 +6,139 @@ namespace requests {
 
 using string_view = std::string_view;
 
-// uri_view for immutable view
 // uri_string for mutation, storage and c_str()
 
+// a structured representation of the parts
 struct uri_parts {
-  string_view scheme;
-  string_view userinfo;
-  string_view host;
-  string_view port;
-  string_view path;
-  string_view query;
-  string_view fragment;
+  struct part { size_t begin = 0; size_t end = 0; };
+  part scheme;
+  part userinfo;
+  part host;
+  part port;
+  part path;
+  part query;
+  part fragment;
 
-  uri_parts() = default;
-  uri_parts(string_view scheme, string_view userinfo, string_view host,
-            string_view port, string_view path, string_view query,
-            string_view fragment) noexcept
-    : scheme(scheme), userinfo(userinfo), host(host),
-      port(port), path(path), query(query), fragment(fragment) {}
+  void parse(string_view str);
 };
 
+// an immutable uri view
 class uri_view {
+  string_view value;
   uri_parts parts;
-  uri_view(const uri_parts& parts) : parts(parts) {}
+  uri_view(string_view value, const uri_parts& parts)
+    : value(value), parts(parts) {}
+  string_view part(const uri_parts::part& p) const noexcept {
+    return value.substr(p.begin, p.end - p.begin);
+  }
  public:
-  bool valid() const noexcept;
-  bool empty() const noexcept;
+  uri_view() = default;
+  uri_view(const uri_view&) = default;
+  uri_view& operator=(const uri_view&) = default;
+  uri_view(uri_view&&) = default;
+  uri_view& operator=(uri_view&&) = default;
 
-  string_view scheme() const noexcept { return parts.scheme; }
+  string_view get() const noexcept { return value; }
+  bool empty() const noexcept {
+    return parts.scheme.begin == parts.fragment.end;
+  }
+
+  string_view scheme() const noexcept { return part(parts.scheme); }
   string_view authority() const noexcept {
-    auto begin = parts.userinfo.data();
-    auto end = parts.port.data() + parts.port.size();
-    return {begin, static_cast<size_t>(end - begin)};
+    return value.substr(parts.userinfo.begin,
+                        parts.port.end - parts.userinfo.begin);
   }
-
-  string_view userinfo() const noexcept { return parts.userinfo; }
-  string_view host() const noexcept { return parts.host; }
-  string_view port() const noexcept { return parts.port; }
-
-  string_view path() const noexcept { return parts.path; }
-  string_view query() const noexcept { return parts.query; }
-  string_view fragment() const noexcept { return parts.fragment; }
-
-  string_view get() const noexcept {
-    auto begin = parts.scheme.data();
-    auto end = parts.fragment.data() + parts.fragment.size();
-    return {begin, static_cast<size_t>(end - begin)};
-  }
+  string_view userinfo() const noexcept { return part(parts.userinfo); }
+  string_view host() const noexcept { return part(parts.host); }
+  string_view port() const noexcept { return part(parts.port); }
+  string_view path() const noexcept { return part(parts.path); }
+  string_view query() const noexcept { return part(parts.query); }
+  string_view fragment() const noexcept { return part(parts.fragment); }
 
   static uri_view parse(string_view str);
 };
 
 uri_view uri_view::parse(const string_view str)
 {
-  uri_parts parts;
-  bool absolute = true;
+  uri_parts p;
+  p.parse(str);
+  return uri_view(str, p);
+}
+
+void uri_parts::parse(string_view str)
+{
   size_t pos = 0;
 
   // scheme:
-  auto scheme_end = str.find(':');
-  if (scheme_end == string_view::npos) {
-    scheme_end = 0;
-    absolute = false;
+  scheme.end = str.find(':');
+  if (scheme.end == string_view::npos) {
+    scheme.end = 0;
   } else {
+    // if : comes after / it isn't part of the scheme
     auto slash = str.find('/');
-    if (slash != string_view::npos && slash < scheme_end) {
-      scheme_end = 0;
-      absolute = false;
+    if (slash != string_view::npos && slash < scheme.end) {
+      scheme.end = 0;
     } else {
-      pos = scheme_end + 1;
+      pos = scheme.end + 1;
     }
   }
-  parts.scheme = str.substr(0, scheme_end);
   // //authority
   if (str.find("//", pos) == pos) {
-    const auto auth_begin = pos + 2;
-    auto auth_end = str.find('/', auth_begin);
-    if (auth_end == string_view::npos)
-      auth_end = str.size();
+    userinfo.begin = pos + 2;
+    port.end = str.find('/', userinfo.begin); // end of authority
+    if (port.end == string_view::npos)
+      port.end = str.size();
     // userinfo@
-    auto userinfo_end = str.find('@', auth_begin);
-    auto host_begin = auth_begin;
-    if (userinfo_end > auth_end) {
-      userinfo_end = auth_begin;
+    userinfo.end = str.find('@', userinfo.begin);
+    if (userinfo.end > port.end) { // @ outside of authority
+      userinfo.end = userinfo.begin; // no userinfo
+      host.begin = userinfo.begin;
     } else {
-      host_begin = userinfo_end + 1;
+      host.begin = userinfo.end + 1; // after @
     }
-    parts.userinfo = str.substr(auth_begin, userinfo_end - auth_begin);
     // host:port
-    const auto host_end = str.find(':', host_begin);
-    if (host_end < auth_end) {
-      parts.port = str.substr(host_end + 1, auth_end - (host_end + 1));
+    host.end = str.find(':', host.begin);
+    if (host.end < port.end) {
+      port.begin = host.end + 1; // after :
     } else {
-      parts.port = str.substr(auth_end, 0);
+      port.begin = port.end; // no port
     }
-    parts.host = str.substr(host_begin, host_end - host_begin);
-    pos = auth_end;
+    path.begin = port.end;
   } else {
-    parts.userinfo = parts.host = parts.port = str.substr(pos, 0);
+    // no authority
+    userinfo.begin = userinfo.end = pos;
+    host.begin = host.end = pos;
+    port.begin = port.end = pos;
+    path.begin = pos;
   }
   // path?query#fragment
-  const auto path_begin = pos;
-  auto path_end = str.find('?', path_begin);
-  if (path_end != string_view::npos) {
-    const auto query_begin = path_end + 1;
-    auto query_end = str.find('#', query_begin);
-    if (query_end != string_view::npos) {
-      parts.fragment = str.substr(query_end + 1);
+  path.end = str.find('?', path.begin);
+  if (path.end != string_view::npos) {
+    query.begin = path.end + 1; // after ?
+    query.end = str.find('#', path.begin);
+    if (query.end == string_view::npos) {
+      query.end = str.size();
+      fragment.begin = fragment.end = query.end; // no fragment
+    } else if (query.end < path.end) { // # before ?
+      path.end = query.begin = query.end; // no query
+      fragment.begin = query.end + 1; // after #
     } else {
-      query_end = str.size();
-      parts.fragment = str.substr(query_end, 0);
+      fragment.begin = query.end + 1; // after #
+      fragment.end = str.size();
     }
-    parts.query = str.substr(query_begin, query_end - query_begin);
   } else {
     // no query
-    path_end = str.find('#', path_begin);
-    if (path_end != string_view::npos) {
-      parts.query = str.substr(path_end + 1, 0);
-      parts.fragment = str.substr(path_end + 1);
+    path.end = str.find('#', path.begin);
+    if (path.end != string_view::npos) {
+      query.begin = query.end = path.end; // no query
+      fragment.begin = path.end + 1; // after #
+      fragment.end = str.size();
     } else {
-      path_end = str.size();
-      parts.query = parts.fragment = str.substr(path_end, 0);
+      path.end = str.size();
+      query.begin = query.end = path.end; // no query
+      fragment.begin = fragment.end = path.end; // no fragment
     }
   }
-  parts.path = str.substr(path_begin, path_end - path_begin);
-  return uri_view(parts);
 }
 
 } // namespace requests

@@ -1,8 +1,8 @@
 add_subdirectory(dependency)
 
-add_executable(test_uri test_uri.cc)
-target_link_libraries(test_uri requests gtest_main boost_system)
-add_test(test_uri test_uri)
+add_executable(test_uri_view test_uri_view.cc)
+target_link_libraries(test_uri_view requests gtest_main boost_system)
+add_test(test_uri_view test_uri_view)
 
 add_executable(test_http_session test_http_session.cc)
 target_link_libraries(test_http_session requests gtest_main boost_system)
