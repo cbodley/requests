@@ -55,6 +55,7 @@ void uri_parts::parse(const std::string_view str)
       port.begin = host.end + 1; // after :
     } else {
       port.begin = port.end; // no port
+      host.end = port.end;
     }
     path.begin = port.end;
   } else {
