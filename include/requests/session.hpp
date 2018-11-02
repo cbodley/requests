@@ -1,15 +1,6 @@
 #pragma once
 
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/beast/http/write.hpp>
-#include <boost/beast/http/read.hpp>
-
-#include "uri.hpp"
-
-namespace boost::asio {
-class io_context;
-}
+#include <requests/request.hpp>
 
 namespace requests {
 
@@ -20,7 +11,8 @@ struct cookies {
 
 // http session object that can persist cookies and request headers over
 // several requests
-template <typename Fields = boost::beast::http::fields, typename Cookies = cookies>
+template <typename Fields = boost::beast::http::fields,
+          typename Cookies = cookies>
 class http_session {
   using fields_type = Fields;
   fields_type fields_;
@@ -50,29 +42,8 @@ void request(boost::asio::io_context& ioc,
              boost::beast::http::response<ResponseBody, ResponseFields>& response,
              boost::system::error_code& ec)
 {
-  auto host = url.host();
-  auto port = url.port();
-  if (port.empty()) {
-    auto scheme = url.scheme();
-    port = (scheme == "https" ? "443" : "80");
-  }
-  auto resolver = boost::asio::ip::tcp::resolver(ioc);
-  auto addrs = resolver.resolve(
-      boost::asio::string_view{host.data(), host.size()},
-      boost::asio::string_view{port.data(), port.size()}, ec);
-  if (ec) {
-    return;
-  }
-  auto socket = boost::asio::ip::tcp::socket(ioc);
-  auto endpoint = boost::asio::connect(socket, addrs, ec);
-  if (ec) {
-    return;
-  }
   session.prepare_request(request);
-  boost::beast::http::write(socket, request, ec);
-  if (ec) {
-    return;
-  }
+  requests::request(ioc, url, request, response, ec);
 }
 
 template <typename SessionFields, typename Cookies,
@@ -80,10 +51,14 @@ template <typename SessionFields, typename Cookies,
           typename ResponseBody, typename ResponseFields,
           typename CompletionToken> // signature: void(error_code)
 auto async_request(boost::asio::io_context& ioc,
-                   http_session<SessionFields, Cookies>& session,
-                   boost::asio::string_view url,
+                   http_session<SessionFields, Cookies>& session, uri_view url,
                    boost::beast::http::request<RequestBody, RequestFields>& request,
                    boost::beast::http::response<ResponseBody, ResponseFields>& response,
-                   CompletionToken&& token);
+                   CompletionToken&& token)
+{
+  session.prepare_request(request);
+  return requests::request(ioc, url, request, response,
+                           std::forward<CompletionToken>(token));
+}
 
 } // namespace requests
