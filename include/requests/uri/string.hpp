@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include <requests/uri/parser.hpp>
+#include <requests/uri/view.hpp>
 
 namespace requests {
 
@@ -26,6 +27,10 @@ class uri_string {
   bool empty() const noexcept {
     return parts.scheme.begin == parts.fragment.end;
   }
+
+  operator uri_view() & { return uri_view(value, parts); }
+  operator uri_view() const & { return uri_view(value, parts); }
+  // no conversion for &&
 
   std::string_view scheme() const noexcept { return part(parts.scheme); }
   std::string_view authority() const noexcept {

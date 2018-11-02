@@ -645,3 +645,17 @@ TEST(uri_string, move)
     EXPECT_EQ("https://domain.com/index.html", copied.get());
   }
 }
+
+TEST(uri_string, convert_to_view)
+{
+  auto uri = requests::uri_string::parse("https://domain.com/index.html");
+  ASSERT_EQ("https://domain.com/index.html", uri.get());
+  auto f = [] (requests::uri_view view) {
+    EXPECT_EQ("https", view.scheme());
+    EXPECT_EQ("domain.com", view.authority());
+    EXPECT_EQ("/index.html", view.path());
+    EXPECT_EQ("https://domain.com/index.html", view.get());
+  };
+  f(uri);
+  ASSERT_EQ("https://domain.com/index.html", uri.get());
+}

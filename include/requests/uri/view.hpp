@@ -13,6 +13,7 @@ class uri_view {
   std::string_view part(const uri_parts::part& p) const noexcept {
     return value.substr(p.begin, p.end - p.begin);
   }
+  friend class uri_string; // for implicit conversion
  public:
   uri_view() = default;
   uri_view(const uri_view&) = default;
