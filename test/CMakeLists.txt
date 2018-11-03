@@ -16,6 +16,10 @@ add_executable(test_request test_request.cc)
 target_link_libraries(test_request sanitizers requests gtest_main)
 add_test(test_request test_request)
 
+add_executable(test_timed_stream test_timed_stream.cc)
+target_link_libraries(test_timed_stream sanitizers requests gtest_main)
+add_test(test_timed_stream test_timed_stream)
+
 add_executable(test_http_error_std test_http_error_std.cc)
 target_link_libraries(test_http_error_std sanitizers requests gtest_main)
 add_test(test_http_error_std test_http_error_std)
