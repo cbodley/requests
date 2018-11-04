@@ -12,6 +12,10 @@ add_executable(test_uri_string test_uri_string.cc)
 target_link_libraries(test_uri_string sanitizers requests gtest_main)
 add_test(test_uri_string test_uri_string)
 
+add_executable(test_connection test_connection.cc)
+target_link_libraries(test_connection sanitizers requests gtest_main)
+add_test(test_connection test_connection)
+
 add_executable(test_request test_request.cc)
 target_link_libraries(test_request sanitizers requests gtest_main)
 add_test(test_request test_request)
