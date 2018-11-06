@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include <boost/asio/ip/tcp.hpp>
 
 #include <boost/beast/core/flat_buffer.hpp>
@@ -19,9 +21,12 @@ class basic_http_connection {
   using buffer_type = boost::beast::flat_buffer;
   buffer_type buffer;
  public:
+  basic_http_connection(stream_type&& stream) : stream(std::move(stream)) {}
   template <typename ...Args>
-  basic_http_connection(Args&& ...args) : stream(std::forward<Args>(args)...) {}
+  basic_http_connection(std::in_place_t, Args&& ...args)
+    : stream(std::forward<Args>(args)...) {}
 
+  // XXX: executor_type not technically part of the async stream concepts
   using executor_type = typename stream_type::executor_type;
   executor_type get_executor() { return stream.get_executor(); }
 
