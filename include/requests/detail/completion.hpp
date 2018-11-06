@@ -28,7 +28,7 @@ struct user_data<void> {};
 
 
 template <typename T, typename ...Args>
-class completion<void(Args...), T> : user_data<T> {
+class completion<void(Args...), T> : public user_data<T> {
  public:
   template <typename Executor1, typename Handler, typename ...TArgs>
   static std::unique_ptr<completion>
