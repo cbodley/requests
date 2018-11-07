@@ -1,4 +1,4 @@
-#include <requests/detail/timed_stream.hpp>
+#include <requests/detail/timed_async_stream.hpp>
 #include <requests/detail/completion.hpp>
 #include <boost/asio/buffer.hpp>
 #include <gtest/gtest.h>
@@ -54,10 +54,10 @@ auto capture(std::optional<boost::system::error_code>& ec) {
   return [&] (boost::system::error_code e, size_t b) { ec = e; };
 }
 
-TEST(timed_stream, async_read_timeout)
+TEST(timed_async_stream, async_read_timeout)
 {
   boost::asio::io_context context;
-  detail::timed_stream stream(NullAsyncStream{context}, Timer{context}, 1ms);
+  detail::timed_async_stream stream(NullAsyncStream{context}, Timer{context}, 1ms);
 
   std::array<char, 4> buffer;
   std::optional<boost::system::error_code> ec;
@@ -70,10 +70,10 @@ TEST(timed_stream, async_read_timeout)
   EXPECT_EQ(boost::asio::error::operation_aborted, *ec);
 }
 
-TEST(timed_stream, async_write_timeout)
+TEST(timed_async_stream, async_write_timeout)
 {
   boost::asio::io_context context;
-  detail::timed_stream stream(NullAsyncStream{context}, Timer{context}, 1ms);
+  detail::timed_async_stream stream(NullAsyncStream{context}, Timer{context}, 1ms);
 
   std::vector<char> buffer(16, 'a');
   std::optional<boost::system::error_code> ec;
