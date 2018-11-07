@@ -14,17 +14,16 @@
 
 namespace requests {
 
-template <typename Stream>
+template <typename Stream, typename Buffer = boost::beast::flat_buffer>
 class basic_http_connection {
   using stream_type = Stream;
   stream_type stream;
-  using buffer_type = boost::beast::flat_buffer;
+  using buffer_type = Buffer;
   buffer_type buffer;
  public:
-  basic_http_connection(stream_type&& stream) : stream(std::move(stream)) {}
-  template <typename ...Args>
-  basic_http_connection(std::in_place_t, Args&& ...args)
-    : stream(std::forward<Args>(args)...) {}
+  basic_http_connection(stream_type&& stream,
+                        buffer_type&& buffer = buffer_type())
+    : stream(std::move(stream)), buffer(std::move(buffer)) {}
 
   // XXX: executor_type not technically part of the async stream concepts
   using executor_type = typename stream_type::executor_type;
@@ -46,21 +45,21 @@ class basic_http_connection {
               boost::system::error_code& ec);
 
   template <bool isRequest, typename Derived>
-  size_t read(boost::beast::http::parser<isRequest, Derived>& parser);
+  size_t read(boost::beast::http::basic_parser<isRequest, Derived>& parser);
   template <bool isRequest, typename Derived>
-  size_t read(boost::beast::http::parser<isRequest, Derived>& parser,
+  size_t read(boost::beast::http::basic_parser<isRequest, Derived>& parser,
               boost::system::error_code& ec);
 
   template <bool isRequest, typename Derived>
-  size_t read_header(boost::beast::http::parser<isRequest, Derived>& parser);
+  size_t read_header(boost::beast::http::basic_parser<isRequest, Derived>& parser);
   template <bool isRequest, typename Derived>
-  size_t read_header(boost::beast::http::parser<isRequest, Derived>& parser,
+  size_t read_header(boost::beast::http::basic_parser<isRequest, Derived>& parser,
                      boost::system::error_code& ec);
 
   template <bool isRequest, typename Derived>
-  size_t read_some(boost::beast::http::parser<isRequest, Derived>& parser);
+  size_t read_some(boost::beast::http::basic_parser<isRequest, Derived>& parser);
   template <bool isRequest, typename Derived>
-  size_t read_some(boost::beast::http::parser<isRequest, Derived>& parser,
+  size_t read_some(boost::beast::http::basic_parser<isRequest, Derived>& parser,
                    boost::system::error_code& ec);
 
   template <bool isRequest, typename Body, typename Fields>
@@ -93,15 +92,15 @@ class basic_http_connection {
                   ReadHandler&& token);
 
   template <bool isRequest, typename Derived, typename ReadHandler>
-  auto async_read(boost::beast::http::parser<isRequest, Derived>& parser,
+  auto async_read(boost::beast::http::basic_parser<isRequest, Derived>& parser,
                   ReadHandler&& token);
 
   template <bool isRequest, typename Derived, typename ReadHandler>
-  auto async_read_header(boost::beast::http::parser<isRequest, Derived>& parser,
+  auto async_read_header(boost::beast::http::basic_parser<isRequest, Derived>& parser,
                          ReadHandler&& token);
 
   template <bool isRequest, typename Derived, typename ReadHandler>
-  auto async_read_some(boost::beast::http::parser<isRequest, Derived>& parser,
+  auto async_read_some(boost::beast::http::basic_parser<isRequest, Derived>& parser,
                        ReadHandler&& token);
 
   template <bool isRequest, typename Body, typename Fields, typename WriteHandler>

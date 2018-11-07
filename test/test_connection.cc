@@ -4,151 +4,191 @@
 #include <boost/asio/spawn.hpp>
 #include "echo_stream.hpp"
 #include "error_stream.hpp"
+#include "joined_stream.hpp"
 #include <gtest/gtest.h>
 
 using boost::asio::ip::tcp;
 namespace http = boost::beast::http;
+using boost::asio::error::connection_reset;
+using body = http::string_body;
 
-// stream that combines two separate streams
-template <typename InStream, typename OutStream>
-struct basic_iostream {
-  InStream& in;
-  OutStream& out;
-  basic_iostream(InStream& in, OutStream& out) : in(in), out(out) {}
+namespace requests {
 
-  using executor_type = typename InStream::executor_type;
-  executor_type get_executor() const noexcept { return in.get_executor(); }
-
-  using next_layer_type = typename InStream::next_layer_type;
-  next_layer_type& next_layer() { return in; }
-
-  using lowest_layer_type = typename InStream::lowest_layer_type;
-  lowest_layer_type& lowest_layer() { return in.lowest_layer(); }
-
-  template <typename MutableBufferSequence>
-  size_t read_some(const MutableBufferSequence& buffers) {
-    static_assert(boost::beast::is_sync_read_stream<InStream>::value,
-                  "SyncReadStream requirements are not met.");
-    return in.read_some(buffers);
-  }
-  template <typename MutableBufferSequence>
-  size_t read_some(const MutableBufferSequence& buffers,
-                   boost::system::error_code& ec) {
-    static_assert(boost::beast::is_sync_read_stream<InStream>::value,
-                  "SyncReadStream requirements are not met.");
-    return in.read_some(buffers, ec);
-  }
-  template <typename ConstBufferSequence>
-  size_t write_some(const ConstBufferSequence& buffers) {
-    static_assert(boost::beast::is_sync_write_stream<OutStream>::value,
-                  "SyncWriteStream requirements are not met.");
-    return out.write_some(buffers);
-  }
-  template <typename ConstBufferSequence>
-  size_t write_some(const ConstBufferSequence& buffers,
-                   boost::system::error_code& ec) {
-    static_assert(boost::beast::is_sync_write_stream<OutStream>::value,
-                  "SyncWriteStream requirements are not met.");
-    return out.write_some(buffers, ec);
-  }
-  template <typename MutableBufferSequence, typename ReadHandler>
-  auto async_read_some(const MutableBufferSequence& buffers,
-                       ReadHandler&& token) {
-    static_assert(boost::beast::is_async_read_stream<InStream>::value,
-                  "AsyncReadStream requirements are not met.");
-    return in.async_read_some(buffers, std::forward<ReadHandler>(token));
-  }
-  template <typename ConstBufferSequence, typename WriteHandler>
-  auto async_write_some(const ConstBufferSequence& buffers,
-                        WriteHandler&& token) {
-    static_assert(boost::beast::is_async_write_stream<OutStream>::value,
-                  "AsyncWriteStream requirements are not met.");
-    return out.async_write_some(buffers, std::forward<WriteHandler>(token));
-  }
-};
-
-
-TEST(http_connection, error_stream)
+TEST(http_connection, sync)
 {
   boost::asio::io_context ioc;
-  auto in = requests::error_stream(ioc.get_executor(), boost::asio::error::eof);
-  auto out = requests::error_stream(ioc.get_executor(), boost::asio::error::connection_reset);
-  auto stream = basic_iostream(in, out);
-  char c = 'a';
-  boost::system::error_code ec;
-  stream.write_some(boost::asio::buffer(&c, 1), ec);
-  EXPECT_EQ(boost::asio::error::connection_reset, ec);
-  stream.read_some(boost::asio::buffer(&c, 1), ec);
-  EXPECT_EQ(boost::asio::error::eof, ec);
-}
+  auto in = echo_stream(ioc.get_executor());
+  auto out = echo_stream(ioc.get_executor());
+  auto client = basic_http_connection(join_streams(in, out));
+  auto server = basic_http_connection(join_streams(out, in));
 
-TEST(http_connection, test_stream)
-{
-  boost::asio::io_context ioc;
-  auto in = requests::echo_stream(ioc.get_executor(), 8);
-  auto out = requests::echo_stream(ioc.get_executor(), 8);
-  auto client = basic_iostream(in, out);
-  auto server = basic_iostream(out, in);
   boost::system::error_code ec;
   {
-    char c = 'a';
-    client.write_some(boost::asio::buffer(&c, 1), ec);
-    EXPECT_FALSE(ec);
+    http::request<body> request(http::verb::get, "/", 11, "hello");
+    request.prepare_payload();
+    client.write(request, ec);
+    ASSERT_FALSE(ec);
   }
   {
-    char c = 0;
-    server.read_some(boost::asio::buffer(&c, 1), ec);
-    EXPECT_FALSE(ec);
-    EXPECT_EQ('a', c);
+    http::request<body> request;
+    server.read(request, ec);
+    ASSERT_FALSE(ec);
+    EXPECT_EQ(http::verb::get, request.method());
+    EXPECT_EQ("hello", request.body());
+
+    http::response<body> response(http::status::ok, request.version(), "world");
+    response.prepare_payload();
+    server.write(response, ec);
+    ASSERT_FALSE(ec);
   }
   {
-    char c = 'b';
-    server.write_some(boost::asio::buffer(&c, 1), ec);
-    EXPECT_FALSE(ec);
-  }
-  {
-    char c = 0;
-    client.read_some(boost::asio::buffer(&c, 1), ec);
-    EXPECT_FALSE(ec);
-    EXPECT_EQ('b', c);
+    http::response<body> response;
+    client.read(response, ec);
+    ASSERT_FALSE(ec);
+    EXPECT_EQ("world", response.body());
+    EXPECT_EQ(http::status::ok, response.result());
   }
 }
 
-TEST(http_connection, connection)
+TEST(http_connection, async)
 {
   boost::asio::io_context ioc;
-  auto in = requests::echo_stream(ioc.get_executor());
-  auto out = requests::echo_stream(ioc.get_executor());
-  auto client = basic_iostream(in, out);
-  auto server = basic_iostream(out, in);
+  auto in = echo_stream(ioc.get_executor());
+  auto out = echo_stream(ioc.get_executor());
+  auto client = basic_http_connection(join_streams(in, out));
+  auto server = basic_http_connection(join_streams(out, in));
 
-  using body = boost::beast::http::string_body;
-  boost::asio::spawn(ioc, [&] (boost::asio::yield_context yield) {
-      requests::basic_http_connection connection(std::move(server));
+  boost::asio::spawn(ioc, [&server] (boost::asio::yield_context yield) {
       http::request<body> request;
-      connection.async_read(request, yield);
+      server.async_read(request, yield);
       EXPECT_EQ(http::verb::get, request.method());
       EXPECT_EQ("hello", request.body());
+
       http::response<body> response(http::status::ok, request.version(), "world");
       response.prepare_payload();
-      connection.async_write(response, yield);
+      server.async_write(response, yield);
     });
-  std::thread thread([&ioc] { EXPECT_NO_THROW(ioc.run()); });
+
+  boost::asio::spawn(ioc, [&client] (boost::asio::yield_context yield) {
+      http::request<body> request(http::verb::get, "/", 11, "hello");
+      request.prepare_payload();
+      client.async_write(request, yield);
+
+      http::response<body> response;
+      client.async_read(response, yield);
+      EXPECT_EQ("world", response.body());
+      EXPECT_EQ(http::status::ok, response.result());
+    });
+
+  EXPECT_NO_THROW(ioc.run());
+}
+
+static boost::system::error_code& clear_ec(boost::system::error_code& ec)
+{
+  ec.clear();
+  return ec;
+}
+
+TEST(http_connection, read_errors)
+{
+  boost::asio::io_context ioc;
+  auto connection = basic_http_connection(
+      error_stream(ioc.get_executor(), connection_reset));
+
+  http::request<body> request;
+  http::response<body> response;
+  http::parser<true, body> parser(request);
 
   boost::system::error_code ec;
 
-  requests::basic_http_connection connection(std::move(client));
+  EXPECT_THROW(connection.read(request), boost::system::system_error);
+  connection.read(request, ec);
+  EXPECT_EQ(connection_reset, ec);
 
-  http::request<body> request(http::verb::get, "/", 11, "hello");
-  request.prepare_payload();
-  connection.write(request, ec);
-  ASSERT_FALSE(ec);
+  EXPECT_THROW(connection.read(response), boost::system::system_error);
+  connection.read(response, clear_ec(ec));
+  EXPECT_EQ(connection_reset, ec);
 
-  http::response<body> response;
-  connection.read(response, ec);
-  ASSERT_FALSE(ec);
-  EXPECT_EQ("world", response.body());
-  EXPECT_EQ(http::status::ok, response.result());
+  EXPECT_THROW(connection.read(parser), boost::system::system_error);
+  connection.read(parser, clear_ec(ec));
+  EXPECT_EQ(connection_reset, ec);
 
-  thread.join();
+  EXPECT_THROW(connection.read_header(parser), boost::system::system_error);
+  connection.read_header(parser, clear_ec(ec));
+  EXPECT_EQ(connection_reset, ec);
+
+  EXPECT_THROW(connection.read_some(parser), boost::system::system_error);
+  connection.read_some(parser, clear_ec(ec));
+  EXPECT_EQ(connection_reset, ec);
+
+  boost::asio::spawn(ioc, [&] (boost::asio::yield_context yield) {
+      connection.async_read(request, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+
+      connection.async_read(response, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+
+      connection.async_read(parser, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+
+      connection.async_read_header(parser, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+
+      connection.async_read_some(parser, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+    });
+  EXPECT_NO_THROW(ioc.run());
 }
+
+TEST(http_connection, write_errors)
+{
+  boost::asio::io_context ioc;
+  auto connection = basic_http_connection(
+      error_stream(ioc.get_executor(), connection_reset));
+
+  http::request<body> request;
+  http::response<body> response;
+  http::serializer<false, body> serializer(response);
+
+  boost::system::error_code ec;
+
+  EXPECT_THROW(connection.write(request), boost::system::system_error);
+  connection.write(request, ec);
+  EXPECT_EQ(connection_reset, ec);
+
+  EXPECT_THROW(connection.write(response), boost::system::system_error);
+  connection.write(response, clear_ec(ec));
+  EXPECT_EQ(connection_reset, ec);
+
+  EXPECT_THROW(connection.write(serializer), boost::system::system_error);
+  connection.write(serializer, clear_ec(ec));
+  EXPECT_EQ(connection_reset, ec);
+
+  EXPECT_THROW(connection.write_header(serializer), boost::system::system_error);
+  connection.write_header(serializer, clear_ec(ec));
+  EXPECT_EQ(connection_reset, ec);
+
+  EXPECT_THROW(connection.write_some(serializer), boost::system::system_error);
+  connection.write_some(serializer, clear_ec(ec));
+  EXPECT_EQ(connection_reset, ec);
+
+  boost::asio::spawn(ioc, [&] (boost::asio::yield_context yield) {
+      connection.async_write(request, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+
+      connection.async_write(response, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+
+      connection.async_write(serializer, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+
+      connection.async_write_header(serializer, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+
+      connection.async_write_some(serializer, yield[clear_ec(ec)]);
+      EXPECT_EQ(connection_reset, ec);
+    });
+  EXPECT_NO_THROW(ioc.run());
+}
+
+} // namespace requests
