@@ -6,8 +6,9 @@
 
 namespace requests::detail {
 
+// an async stream with optional timeouts on each read/write
 template <typename Stream, typename Clock, typename WaitTraits>
-class timed_stream {
+class timed_async_stream {
   using stream_type = Stream;
   using timer_type = boost::asio::basic_waitable_timer<Clock, WaitTraits>;
   using duration_type = typename timer_type::duration;
@@ -15,7 +16,8 @@ class timed_stream {
   timer_type timer;
   duration_type timeout;
  public:
-  timed_stream(stream_type&& stream, timer_type&& timer, duration_type timeout)
+  timed_async_stream(stream_type&& stream, timer_type&& timer,
+                     duration_type timeout = duration_type(0))
     : stream(std::move(stream)), timer(std::move(timer)), timeout(timeout) {}
 
   using executor_type = typename stream_type::executor_type;
@@ -58,8 +60,6 @@ class timed_stream {
     }
     return init.result.get();
   }
-
-  // TODO: SyncReadStream/SyncWriteStream
 };
 
 } // namespace requests::detail
