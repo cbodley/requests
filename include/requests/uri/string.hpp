@@ -23,6 +23,14 @@ class uri_string {
   uri_string(uri_string&&) = default;
   uri_string& operator=(uri_string&&) = default;
 
+  uri_string(const uri_view& view)
+    : value(view.value), parts(view.parts) {}
+  uri_string& operator=(const uri_view& view) {
+    value = view.value;
+    parts = view.parts;
+    return *this;
+  }
+
   std::string_view get() const noexcept { return value; }
   bool empty() const noexcept {
     return parts.scheme.begin == parts.fragment.end;

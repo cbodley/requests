@@ -1,5 +1,4 @@
 #include "requests/uri.hpp"
-#include <iostream>
 #include <gtest/gtest.h>
 
 TEST(uri_string, scheme)
@@ -469,7 +468,6 @@ TEST(uri_string, compose)
     EXPECT_EQ("/path", u.path());
     EXPECT_EQ("fragment", u.fragment());
     EXPECT_EQ("userinfo@host:port", u.authority());
-    std::cout << u.get() << std::endl;
     EXPECT_EQ("scheme://userinfo@host:port/path?que=ry#fragment", u.get());
   }
 }
@@ -655,6 +653,20 @@ TEST(uri_string, convert_to_view)
     EXPECT_EQ("domain.com", view.authority());
     EXPECT_EQ("/index.html", view.path());
     EXPECT_EQ("https://domain.com/index.html", view.get());
+  };
+  f(uri);
+  ASSERT_EQ("https://domain.com/index.html", uri.get());
+}
+
+TEST(uri_string, convert_from_view)
+{
+  auto uri = requests::uri_view::parse("https://domain.com/index.html");
+  ASSERT_EQ("https://domain.com/index.html", uri.get());
+  auto f = [] (requests::uri_string copy) {
+    EXPECT_EQ("https", copy.scheme());
+    EXPECT_EQ("domain.com", copy.authority());
+    EXPECT_EQ("/index.html", copy.path());
+    EXPECT_EQ("https://domain.com/index.html", copy.get());
   };
   f(uri);
   ASSERT_EQ("https://domain.com/index.html", uri.get());
