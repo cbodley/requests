@@ -7,7 +7,7 @@
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/http/read.hpp>
 
-#include <requests/uri/view.hpp>
+#include <requests/uri_view.hpp>
 
 namespace requests {
 

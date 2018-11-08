@@ -1,5 +1,5 @@
 #include <requests/request.hpp>
-#include <requests/uri/string.hpp>
+#include <requests/uri_string.hpp>
 #include <thread>
 #include <boost/beast.hpp>
 #include <boost/asio/spawn.hpp>

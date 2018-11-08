@@ -1,4 +1,4 @@
-#include "requests/uri.hpp"
+#include "requests/uri_view.hpp"
 #include <gtest/gtest.h>
 
 TEST(uri_view, parse_absolute)

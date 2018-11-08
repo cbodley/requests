@@ -1,4 +1,4 @@
-#include "requests/uri.hpp"
+#include "requests/uri_string.hpp"
 #include <gtest/gtest.h>
 
 TEST(uri_string, scheme)

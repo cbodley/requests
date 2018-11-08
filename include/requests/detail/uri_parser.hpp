@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
+#include <string_view>
 
-namespace requests {
+namespace requests::detail {
 
 // a structured representation of the parts
 struct uri_parts {
@@ -15,10 +15,12 @@ struct uri_parts {
   part query;
   part fragment;
 
-  void parse(std::string_view str);
+  template <typename CharT, typename Traits>
+  void parse(std::basic_string_view<CharT, Traits> str);
 };
 
-void uri_parts::parse(const std::string_view str)
+template <typename CharT, typename Traits>
+void uri_parts::parse(const std::basic_string_view<CharT, Traits> str)
 {
   size_t pos = 0;
 
@@ -95,4 +97,4 @@ void uri_parts::parse(const std::string_view str)
   }
 }
 
-} // namespace requests
+} // namespace requests::detail

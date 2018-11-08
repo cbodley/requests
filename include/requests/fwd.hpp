@@ -1,11 +1,18 @@
 #pragma once
 
+#include <type_traits>
+
 #include <boost/beast/http/message.hpp>
 
 namespace requests {
 
-class uri_view;
-class uri_string;
+template <typename CharT, typename Traits, typename Allocator>
+class basic_uri_string;
+using uri_string = basic_uri_string<char, std::char_traits<char>, std::allocator<char>>;
+
+template <typename CharT, typename Traits>
+class basic_uri_view;
+using uri_view = basic_uri_view<char, std::char_traits<char>>;
 
 class http_connection;
 class https_connection;
