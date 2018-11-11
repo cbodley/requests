@@ -4,7 +4,7 @@
 
 #include <boost/asio/ip/tcp.hpp>
 
-#include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/core/multi_buffer.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/serializer.hpp>
@@ -14,11 +14,11 @@
 
 namespace requests {
 
-template <typename Stream, typename Buffer = boost::beast::flat_buffer>
+template <typename Stream, typename DynamicBuffer = boost::beast::multi_buffer>
 class basic_http_connection {
   using stream_type = Stream;
   stream_type stream;
-  using buffer_type = Buffer;
+  using buffer_type = DynamicBuffer;
   buffer_type buffer;
  public:
   basic_http_connection(stream_type&& stream,
